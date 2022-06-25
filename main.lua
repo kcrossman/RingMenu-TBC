@@ -9,6 +9,7 @@ local RingMenu_globalConfigDefault = {
 local RingMenu_ringConfigDefault = {
     name = nil,
     keyBind = nil,
+    holdToggle = false,
     closeOnClick = true,
     level = 1,
     radius = 100,
@@ -21,7 +22,7 @@ local RingMenu_ringConfigDefault = {
         g = 0.0,
         b = 0.0,
         a = 0.5,
-    },
+    }
 }
 
 local RingMenu_globalStateDefault = {
@@ -56,27 +57,28 @@ end
 function RingMenu_UpdateRing(ringID)
     -- Lazy-init of the ringFrame array
     RingMenu.ringFrame = RingMenu.ringFrame or {}
-    
+
     local config = RingMenu_ringConfig[ringID] -- required for further setup
-    
+
     if not RingMenu.ringFrame[ringID] then
         -- Lazy-init of the ringFrame itself
         RingMenu.ringFrame[ringID] = CreateFrame("Frame", "RingMenuRingFrame" .. ringID, UIParent)
         local rf = RingMenu.ringFrame[ringID]
         rf.ringID = ringID
-        
+
         -- Backdrop texture
         rf.backdrop = rf:CreateTexture(rf:GetName() .. "Backdrop", "BACKGROUND")
         rf.backdrop:SetPoint("BOTTOMLEFT", rf, "BOTTOMLEFT")
         rf.backdrop:SetPoint("TOPRIGHT", rf, "TOPRIGHT")
         rf.backdrop:SetTexture("Interface\\AddOns\\RingMenu\\RingMenuBackdrop.tga")
-        
+
         -- An invisible button used as a secure handler for
         -- (a) responding to CLICK RingMenuToggleRing*:LeftButton binding events on a secure path
         -- (b) running secure event responses for the ring button OnClick event
         rf.toggleButton = CreateFrame("Button", "RingMenuToggleRing" .. ringID, rf, "SecureHandlerMouseUpDownTemplate")
         rf.toggleButton:SetAttribute("downbutton", "")
         rf.toggleButton:SetFrameRef("UIParent", UIParent)
+        rf.toggleButton:SetAttribute("holdToggle", config.holdToggle)
         rf.toggleButton:SetAttribute("_onmousedown", [[ -- (self, button)
             local rf = self:GetParent()
             local numRings = self:GetAttribute("numRings")
@@ -101,23 +103,33 @@ function RingMenu_UpdateRing(ringID)
                 rf:Show()
             end
         ]])
-        
+        rf.toggleButton:SetAttribute("_onmouseup", [[ -- (self, button)
+            local rf = self:GetParent()
+            local holdToggle = self:GetAttribute("holdToggle")
+            
+            if holdToggle then
+                rf:Hide()
+            end
+        ]])
+
         rf:Hide()
     end
     local rf = RingMenu.ringFrame[ringID]
-    
+
     local frameSize = 2 * config.radius * config.backdropScale
     rf:SetFrameLevel(config.level)
     rf:SetSize(frameSize, frameSize)
-    rf.backdrop:SetVertexColor(config.backdropColor.r, config.backdropColor.g, config.backdropColor.b, config.backdropColor.a)
+    rf.backdrop:SetVertexColor(config.backdropColor.r, config.backdropColor.g, config.backdropColor.b,
+        config.backdropColor.a)
     rf.toggleButton:SetAttribute("allowMultipleOpenRings", RingMenu_globalConfig.allowMultipleOpenRings)
     rf:SetAttribute("closeOnClick", config.closeOnClick)
-    
+
     -- Lazy-init this ringFrame's buttons
     rf.button = rf.button or {}
     for buttonID = 1, (config.numSlots or 1) do
         if not rf.button[buttonID] then
-            rf.button[buttonID] = CreateFrame("CheckButton", "RingMenuRingFrame" .. ringID .. "Button" .. buttonID, rf, "ActionBarButtonTemplate")
+            rf.button[buttonID] = CreateFrame("CheckButton", "RingMenuRingFrame" .. ringID .. "Button" .. buttonID, rf,
+                "ActionBarButtonTemplate")
             if Masque then
                 local masqueRing = Masque:Group("RingMenu")
                 masqueRing:AddButton(rf.button[buttonID])
@@ -125,7 +137,7 @@ function RingMenu_UpdateRing(ringID)
             local button = rf.button[buttonID]
             button.ringID = ringID
             button.buttonID = buttonID
-            
+
             rf.toggleButton:WrapScript(button, "OnClick", [[ -- (self, button, down)
                 local rf = self:GetParent()
                 local closeOnClick = rf:GetAttribute("closeOnClick")
@@ -135,7 +147,7 @@ function RingMenu_UpdateRing(ringID)
             ]])
         end
         local button = rf.button[buttonID]
-        
+
         local angle = 2 * math.pi * (0.25 - (buttonID - 1) / config.numSlots - config.angle / 360.0)
         local posX = config.radius * math.cos(angle)
         local posY = config.radius * math.sin(angle)
@@ -175,7 +187,7 @@ end
 
 -- The main frame is used only to respond to global events
 RingMenu.mainFrame = CreateFrame("Frame")
-RingMenu.mainFrame.OnEvent = function (self, event, arg1)
+RingMenu.mainFrame.OnEvent = function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == RingMenu_AddonName then
         -- Update empty fields in settings with default values
         RingMenu_globalConfig = RingMenu_globalConfig or {}
@@ -184,15 +196,15 @@ RingMenu.mainFrame.OnEvent = function (self, event, arg1)
             RingMenu_ringConfig[ringID] = RingMenu_ringConfig[ringID] or {}
             RingMenu.update_with_defaults(RingMenu_ringConfig[ringID], RingMenu_ringConfigDefault)
         end
-        
+
         -- Init state
         RingMenu.globalState = RingMenu.deep_copy(RingMenu_globalStateDefault)
         for ringID = 1, RingMenu_globalConfig.numRings do
             RingMenu.ringState[ringID] = RingMenu.deep_copy(RingMenu_ringStateDefault)
         end
-        
+
         RingMenu_UpdateAllRings()
-        
+
         -- Init options panel
         RingMenuOptions_SetupPanel()
     end

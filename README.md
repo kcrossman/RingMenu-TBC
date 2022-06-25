@@ -1,11 +1,11 @@
 # RingMenu
-This AddOn for Classic WoW (v. 1.13) adds an additional circular action bar that normally remains hidden but can be summoned by a click of a (mouse) button.
+RingMenu TBC is a clone of the AddOn made by jsb to support WoW Classic TBC (v. 2.5.4.44171). RingMenu adds configurable circular action bars revealed with any chosen binding.
 
 ![RingMenu](http://i.imgur.com/DmDWVaA.png)
 
-The RingMenu is hence ideal for storing away action buttons that are frequently used yet need not be present on the screen at all times (e.g. trade skills, tracking spells, hearthstone, etc.).
+The RingMenu is ideal for hiding actions that are frequently used yet aren't required to be shown at all times (e.g. trade skills, tracking spells, hearthstone, etc.).
 
-**Note**: RingMenu for Classic WoW is still in Beta. Some features (e.g. animations) are currently missing.
+**Note**: RingMenu TBC is a clone of the AddOn made by jsb to add support and stability for WoW Classic TBC.
 
 ## Setup and Configuration
 Go to **Main Menu** > **Interface Options** > **AddOns** > **RingMenu** and use the _Key Binding_ field to choose an appropriate button to open / close the RingMenu.

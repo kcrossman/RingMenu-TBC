@@ -1,5 +1,7 @@
 local RingMenu_AddonName, RingMenu = ...
 
+local SaveBindings = SaveBindings or AttemptToSaveBindings
+
 local function getRingBindingCommand(ringID)
     local ringFrame = RingMenu.ringFrame[ringID]
     local toggleButton = ringFrame.toggleButton
@@ -44,7 +46,7 @@ local function restoreAllSavedKeyBinds()
             SetBinding(ringConfig.keyBind, getRingBindingCommand(ringID))
         end
     end
-    AttemptToSaveBindings(GetCurrentBindingSet())
+    SaveBindings(GetCurrentBindingSet())
 end
 
 function RingMenuOptionsPanel_AddRing()
@@ -64,13 +66,13 @@ function RingMenuOptionsPanel_RemoveRing()
     end
 
     local ringPanel = _G["RingMenuOptionsPanelRingConfig"]
-    
+
     unbindAllRingBindingKeyBinds(RingMenuOptionsPanel.currentRingID)
     RingMenu_RemoveRing(RingMenuOptionsPanel.currentRingID)
     if RingMenuOptionsPanel.currentRingID > RingMenu_globalConfig.numRings then
         RingMenuOptionsPanel.currentRingID = RingMenu_globalConfig.numRings
     end
-    
+
     restoreAllSavedKeyBinds()
     RingMenu_UpdateAllRings()
     ringPanel.refresh()
@@ -86,6 +88,11 @@ RingMenu.ringConfigWidgets = {
         name = "name",
         label = "Name",
         widgetType = "text",
+    },
+    {
+        name = "holdToggle",
+        label = "Hold to Toggle",
+        widgetType = "checkbox",
     },
     {
         name = "firstSlot",
@@ -133,16 +140,16 @@ function RingMenuOptions_SetupPanel()
     local panel = _G["RingMenuOptionsPanel"]
     local ringPanel = _G["RingMenuOptionsPanelRingConfig"]
     local ringDropdown = _G["RingMenuOptionsPanelRingDropDown"]
-    
+
     -- Setup the drop down menu
-    
+
     panel.currentRingID = 1
-    
+
     function ringDropdown.Clicked(self, ringID, arg2, checked)
         RingMenuOptionsPanel.currentRingID = ringID
         ringPanel.refresh()
     end
-    
+
     function ringDropdown.Menu()
         for ringID = 1, RingMenu_globalConfig.numRings do
             local info = UIDropDownMenu_CreateInfo()
@@ -154,13 +161,14 @@ function RingMenuOptions_SetupPanel()
             UIDropDownMenu_AddButton(info)
         end
     end
+
     UIDropDownMenu_Initialize(ringDropdown, ringDropdown.Menu)
     UIDropDownMenu_SetWidth(ringDropdown, 200)
     UIDropDownMenu_JustifyText(ringDropdown, "LEFT")
     UIDropDownMenu_SetText(ringDropdown, getRingDropdownText(RingMenuOptionsPanel.currentRingID))
-    
+
     -- Setup the per-ring configuration panel
-    
+
     local function appendWidget(parent, child, rowPadding)
         child:SetParent(parent)
         if parent.lastWidget then
@@ -170,12 +178,12 @@ function RingMenuOptions_SetupPanel()
         end
         parent.lastWidget = child
     end
-    
+
     local labelWidth = 160
     local widgetWidth = 180
     local columnPadding = 0
     local rowPadding = 24
-    
+
     local function refreshWidget(widget)
         local widgetFrame = widget.widgetFrame
         if widgetFrame then
@@ -204,35 +212,35 @@ function RingMenuOptions_SetupPanel()
             end
         end
     end
-    
+
     -- This is the method that actually updates the settings field in the RingMenu_ringConfig table
     local function widgetChanged(widget, value)
         local settingsTable = RingMenu_ringConfig[RingMenuOptionsPanel.currentRingID]
         local settingsField = widget.name
         settingsTable[settingsField] = value
         RingMenu_UpdateRing(RingMenuOptionsPanel.currentRingID)
-        
+
         -- Some config panel changes that should take immediate effect
         UIDropDownMenu_SetText(ringDropdown, getRingDropdownText(RingMenuOptionsPanel.currentRingID))
     end
-    
+
     local function sliderOnValueChanged(self, value, isUserInput)
         local widget = self.widget
         local label = _G[self:GetName() .. "Text"]
         local suffix = widget.labelSuffix or ""
         label:SetText(value .. suffix)
-        
+
         if isUserInput then
             widgetChanged(widget, value)
         end
     end
-    
+
     local function checkboxOnClick(self)
         local widget = self.widget
         local value = (not not self:GetChecked())
         widgetChanged(widget, value)
     end
-    
+
     local function textOnValueChanged(self, isUserInput)
         if not isUserInput then
             return
@@ -241,7 +249,7 @@ function RingMenuOptions_SetupPanel()
         local value = self:GetText()
         widgetChanged(widget, value)
     end
-    
+
     local function numberOnValueChanged(self, isUserInput)
         if not isUserInput then
             return
@@ -250,14 +258,14 @@ function RingMenuOptions_SetupPanel()
         local value = tonumber(self:GetText())
         widgetChanged(widget, value)
     end
-    
+
     local keyBindHandler = CustomBindingHandler:CreateHandler("RingMenuToggle")
-    
+
     local function keyBindOnBindingCompleted(self, completedSuccessfully, keys)
         if completedSuccessfully then
             if keys then
                 unbindAllRingBindingKeyBinds(RingMenuOptionsPanel.currentRingID)
-            
+
                 -- Workaround: Sanitize modifier key names
                 local metaKeyMap = {
                     ['LALT'] = 'ALT',
@@ -270,29 +278,29 @@ function RingMenuOptions_SetupPanel()
                 for i, k in pairs(keys) do
                     keys[i] = metaKeyMap[k] or k
                 end
-                
+
                 local keyBind = CreateKeyChordStringFromTable(keys)
                 local command = getRingBindingCommand(RingMenuOptionsPanel.currentRingID)
                 SetBinding(keyBind, command)
-                AttemptToSaveBindings(GetCurrentBindingSet())
-                
+                SaveBindings(GetCurrentBindingSet())
+
                 widgetChanged(self.widget, keyBind)
             end
         end
         self:SetText(getRingBindingKeyBindsText(RingMenuOptionsPanel.currentRingID))
     end
-    
+
     local function colorOnClick(self)
         local widget = self.widget
         local settingsTable = RingMenu_ringConfig[RingMenuOptionsPanel.currentRingID]
         local settingsField = widget.name
         local color = settingsTable[settingsField]
-        
+
         ColorPickerFrame:SetColorRGB(color.r, color.g, color.b)
         ColorPickerFrame.hasOpacity = true
         ColorPickerFrame.opacity = color.a
-        ColorPickerFrame.previousValues = {color.r, color.g, color.b, color.a}
-        local colorPickerCallback = function (restore)
+        ColorPickerFrame.previousValues = { color.r, color.g, color.b, color.a }
+        local colorPickerCallback = function(restore)
             local value = {}
             if restore then
                 value.r, value.g, value.b, value.a = unpack(restore)
@@ -310,18 +318,20 @@ function RingMenuOptions_SetupPanel()
         ColorPickerFrame:Hide()
         ColorPickerFrame:Show()
     end
-    
+
     for _, widget in ipairs(RingMenu.ringConfigWidgets) do
-        local label = ringPanel:CreateFontString(ringPanel:GetName() .. "Label" .. widget.name, "ARTWORK", "GameFontNormal")
+        local label = ringPanel:CreateFontString(ringPanel:GetName() .. "Label" .. widget.name, "ARTWORK",
+            "GameFontNormal")
         label:SetText(widget.label)
         label:SetWidth(labelWidth)
         label:SetJustifyH("LEFT")
         appendWidget(ringPanel, label, rowPadding)
-    
+
         local widgetFrame = nil
-        
+
         if widget.widgetType == "slider" then
-            widgetFrame = CreateFrame("Slider", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel, "OptionsSliderTemplate")
+            widgetFrame = CreateFrame("Slider", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel,
+                "OptionsSliderTemplate")
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding, 0)
             widgetFrame:SetWidth(widgetWidth)
             widgetFrame:SetHeight(17)
@@ -337,56 +347,60 @@ function RingMenuOptions_SetupPanel()
                 lowLabel = lowLabel .. widget.labelSuffix
                 highLabel = highLabel .. widget.labelSuffix
             end
-            _G[widgetFrame:GetName().."Low"]:SetText(lowLabel)
-            _G[widgetFrame:GetName().."High"]:SetText(highLabel)
+            _G[widgetFrame:GetName() .. "Low"]:SetText(lowLabel)
+            _G[widgetFrame:GetName() .. "High"]:SetText(highLabel)
 
             widgetFrame:SetScript("OnValueChanged", sliderOnValueChanged)
         elseif widget.widgetType == "checkbox" then
-            widgetFrame = CreateFrame("CheckButton", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel, "OptionsCheckButtonTemplate")
+            widgetFrame = CreateFrame("CheckButton", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel,
+                "OptionsCheckButtonTemplate")
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding - 2, 0)
-            
+
             widgetFrame:SetScript("OnClick", checkboxOnClick)
         elseif widget.widgetType == "text" then
-            widgetFrame = CreateFrame("EditBox", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel, "InputBoxTemplate")
+            widgetFrame = CreateFrame("EditBox", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel,
+                "InputBoxTemplate")
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding + 6, 0)
             widgetFrame:SetWidth(widgetWidth - 6)
             widgetFrame:SetHeight(20)
             widgetFrame:SetAutoFocus(false)
-            
+
             widgetFrame:SetScript("OnTextChanged", textOnValueChanged)
         elseif widget.widgetType == "number" then
-            widgetFrame = CreateFrame("EditBox", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel, "InputBoxTemplate")
+            widgetFrame = CreateFrame("EditBox", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel,
+                "InputBoxTemplate")
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding + 6, 0)
             widgetFrame:SetWidth(40)
             widgetFrame:SetHeight(20)
             widgetFrame:SetAutoFocus(false)
             widgetFrame:SetNumeric(true)
             widgetFrame:SetMaxLetters(3)
-            
+
             widgetFrame:SetScript("OnTextChanged", numberOnValueChanged)
         elseif widget.widgetType == "keyBind" then
-            widgetFrame = CustomBindingManager:RegisterHandlerAndCreateButton(keyBindHandler, "CustomBindingButtonTemplateWithLabel", ringPanel)
+            widgetFrame = CustomBindingManager:RegisterHandlerAndCreateButton(keyBindHandler,
+                "CustomBindingButtonTemplateWithLabel", ringPanel)
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding - 1, 0)
             widgetFrame:SetWidth(widgetWidth + 2)
-            
-            keyBindHandler:SetOnBindingCompletedCallback(function (completedSuccessfully, keys)
+
+            keyBindHandler:SetOnBindingCompletedCallback(function(completedSuccessfully, keys)
                 keyBindOnBindingCompleted(widgetFrame, completedSuccessfully, keys)
             end)
         elseif widget.widgetType == "color" then
             widgetFrame = CreateFrame("Button", ringPanel:GetName() .. "Widget" .. widget.name, ringPanel)
             widgetFrame:SetPoint("LEFT", label, "RIGHT", columnPadding + 2, 0)
             widgetFrame:SetSize(18, 18)
-            
+
             local texture = widgetFrame:CreateTexture(nil, "BACKGROUND")
             texture:SetPoint("CENTER", widgetFrame, "CENTER")
             texture:SetSize(18, 18)
             texture:SetColorTexture(0.8, 0.8, 0.8, 1.0)
-            
+
             widgetFrame:SetNormalTexture("Interface/ChatFrame/ChatFrameColorSwatch")
             local normalTexture = widgetFrame:GetNormalTexture()
             normalTexture:SetPoint("TOPLEFT", widgetFrame, "TOPLEFT")
             normalTexture:SetPoint("BOTTOMRIGHT", widgetFrame, "BOTTOMRIGHT")
-            
+
             widgetFrame.texture = normalTexture
             widgetFrame:SetScript("OnClick", colorOnClick)
         else
@@ -401,21 +415,25 @@ function RingMenuOptions_SetupPanel()
             widget.widgetFrame = widgetFrame
         end
     end
-    
+
     function ringPanel.refresh()
         UIDropDownMenu_SetText(ringDropdown, getRingDropdownText(RingMenuOptionsPanel.currentRingID))
         for _, widget in ipairs(RingMenu.ringConfigWidgets) do
             refreshWidget(widget)
         end
     end
-    
+
     -- Display the current version in the title
     local version = GetAddOnMetadata("RingMenu", "Version")
+
+    -- Interface AddOns List Title
+    panel.name = "RingMenu TBC"
+
+    -- Interface AddOn Panel Title
     local titleLabel = _G["RingMenuOptionsPanelTitle"]
-    titleLabel:SetText("RingMenu |cFF888888v" .. version)
-    
-    panel.name = "RingMenu"
-    panel.refresh = function (self)
+    titleLabel:SetText("RingMenu TBC |cFF888888v" .. version)
+
+    panel.refresh = function(self)
         ringPanel.refresh()
     end
     -- panel.okay
